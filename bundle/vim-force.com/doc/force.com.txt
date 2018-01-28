@@ -1,0 +1,1323 @@
+*force.com.txt* Plugin for developing on force.com      
+Author: Andrey Gavrikov
+License: Same terms as Vim itself (see |license|)
+
+force.com plugin for Vim                         *vim-force.com* |  *force.com*
+                                                 *salesforce* | *apex*
+
+|force.com-description|   Description
+|force.com-features|      Features
+|zipped-resources|        How to work with zipped *.resource files
+|force.com-limitations|   Limitations
+|force.com-system-requirements|     Installation/System requirements
+|force.com-config-example|          Minimal config example
+
+|force.com-usage|          Usage
+    |apex-project-setup|   creating new force.com project
+        |apex-with-eclipse|      using alongside Eclipse IDE
+        |apex-plugin-standalone| using without Eclipse
+    |apex-commands|        supported commands
+	|apex-code-completion| apex code completion configuration
+
+|force.com-settings|      Settings
+	|force.com-shortcuts-example| example of recommended keyboard shortcuts
+
+|Recommended-Plugins|     other recommended Vim plugins
+|force.com-credits|       Credits 
+
+For Vim version 7.4 (with 'job', 'channel' & 'timers' support) or later.
+Requires :set nocompatible
+
+==============================================================================
+DESCRIPTION                                             *force.com-description*
+
+vim-force.com plugin is a bunch of .vim scripts which allow to develop on
+force.com platform using only web browser and Vim
+
+It is designed for those who do not feel productive in Force.com IDE for Eclipse
+
+http://www.youtube.com/watch?v=x5zKA6V__co
+:|ApexRetrieve| command demo - http://youtu.be/umO86ji2Iqw
+:|ApexStage| command demo - http://youtu.be/zQg8LORh8uc  
+|apex-code-completion| demo - http://youtu.be/u-6JQNuWRdE
+
+
+==============================================================================
+                                                *force.com-system-requirements* 
+                                                       *force.com-installation*
+
+Installation/System requirements 
+
+Note 1: vim config folder location
+in some examples below you may notice ~/vim instead of ~/.vim, 
+if you are using ~/.vim then make sure to adjust paths according to your config
+
+Note 2: it is recommended to use absolute paths in your config to avoid problems
+
+Before vim-force.com plugin can be used following requirements must be met:
+
+1. Vim version 7.4 (with `job` & `channel` support) or later, with `:set nocompatible` 
+
+2. Java JDK/JRE, Version 8 or greater
+   - Oracle JDK
+     http://www.oracle.com/technetwork/java/javase/downloads/index.html
+
+   JDK is not strictly required, JRE will suffice.
+
+3. tooling-force.com.jar
+   See releases page here: https://github.com/neowit/tooling-force.com
+
+4. On MS Windows 
+	Make sure that all paths in your configuration are as short as possible.
+	vim-force.com will be calling tooling-force.com.jar and passing many
+	parameters via command line and some MS Window versions struggle with long
+	command lines. 
+
+5. Unpack vim-force.com plugin archive anywhere you like
+
+ex: ~/vim/vim-force.com
+
+6. Enable filetype plugin and syntax highlighting
+
+e.g. add these lines into .vimrc (or _vimrc on windows) >
+	set nocompatible 
+	filetype plugin on
+	syntax on
+
+7. If not using pathogen - below lines added on step 6, add 'vim-force.com'
+   folder to vim runtime path and make sure it loads apexcode filetype detection
+
+e.g. >
+	if has("unix")
+		let &runtimepath=&runtimepath . ',~/vim/vim-force.com'
+	elseif has("win32")
+		let &runtimepath=&runtimepath . ',c:\Documents and Settings\username\vimfiles\vim-force.com'
+	endif
+	" make sure vim loads apexcode filetype detection
+	runtime ftdetect/vim-force.com.vim
+<
+
+	Alternatively, if using pathogen - drop 'vim-force.com' folder into
+	~/.vim/bundle folder as usual.
+
+8. Index help file
+
+e.g. >
+    :helptags ~/vim/vim-force.com/doc
+
+<    Or if using with pathogen.vim plugin and vim-force.com is in ~/.vim/bundle run >
+    :Helptags
+<
+
+9. Configure required variables: :help |force.com-settings|
+
+
+10. Have a look at the config example: :help |force.com-config-example|
+
+NOTE: depending on the vim flavour installed in your system `job_start()` may
+or may not call its callback function if job fails to start (e.g. due to bad
+configuration). Use :|ApexValidateJavaConfig| command to validate your
+settings.  If |ApexValidateJavaConfig| reports OK but you still have doubts
+then check :|ApexMessages| after calling an Apex[NNN] command (e.g.
+:|ApexToolingVersion| ).
+
+==============================================================================
+Example of minimal _vimrc configuration for win32    *force.com-config-example*
+
+""""""""""""""""""""""""""""""""" _vimrc """""""""""""""""""""""""""""""""""""  >
+ set nocompatible
+ 
+ filetype plugin on
+ syntax on
+ 
+ " two lines below are only needed if plugin is installed without using pathogen
+ let &runtimepath=&runtimepath . ',c:\Documents and Settings\user\vimfiles\vim-force.com'
+ runtime ftdetect/vim-force.com.vim
+ 
+ 
+ if has("win32")
+	let g:apex_tooling_force_dot_com_path = "c:\\temp\\apex\\toolling-force.com.jar"
+ 	if !exists("g:apex_backup_folder")
+ 		" full path required here, relative may not work
+ 		let g:apex_backup_folder="c:\\temp\\apex\\backup"
+ 	endif
+ 	if !exists("g:apex_temp_folder")
+ 		" full path required here, relative may not work
+ 		let g:apex_temp_folder="c:\\temp\\apex\\gvim-deployment"
+ 	endif
+ 	if !exists("g:apex_properties_folder")
+ 		" full path required here, relative may not work
+ 		let g:apex_properties_folder="c:\\temp\\vim-force.com-tests\\secure-properties"
+ 	endif
+ endif	
+
+ set autowrite " not strictly required, but without it you will be getting
+               " errors when running commands that open new buffer 
+			   " (e.g. :ApexQuery or :ApexExecuteAnonymous) on unsaved file
+
+ " (optional) 
+ let g:apex_server_timeoutSec=60*30 " allow server to wait for new connections within 30 minutes
+<
+"""""""""""""""""""""" end config example """"""""""""""""""""""""""""""""""""
+
+
+==============================================================================
+USAGE                                                         *force.com-usage*
+
+There are two ways to use force.com plugin
+A.|apex-with-eclipse|                       Alongside Force.com IDE for Eclipse
+B.|apex-plugin-standalone|                  Standalone, without Eclipse
+
+Both methods assume that there is a <project-name>.properties file available
+at the location specified by |'g:apex_properties_folder'|
+See salesforce_migration_guide.pdf or 
+http://www.salesforce.com/us/developer/docs/daas/index_Left.htm#StartTopic=Content/forcemigrationtool_connect.htm 
+for details of .properties file.
+Before moving next make sure to configure all global variables listed in |force.com-settings|
+
+Project Setup and Structure                                *apex-project-setup*
+
+	vim force.com plugin uses same project structure as Force.com IDE for Eclipse
+		<eclipse project folder>
+		--./src
+		----./classes
+		----./pages
+		----./triggers
+		----...
+
+	So if you have existing eclipse project then you can start using force.com plugin
+	straight away by opening .cls or .trigger file with vim
+------------------------------------------------------------------------------
+A. Using alongside Force.com IDE for Eclipse                *apex-with-eclipse* 
+
+
+	1. Create Force.com project with Eclipse as usual (selecting necessary metadata types)
+	2. [optional] close Eclipse
+	3. switch back to file system
+	4. go to eclipse Eclipse workspace and locate folder of your project
+	5. open any source class (.cls) file with vim
+	
+	at this point if class code is syntax highlighted then chances are that most of your 
+	config is right
+	
+    6. check your config 
+        :ApexValidateJavaConfig
+       if no errors shown then proceed to next step.
+           
+	7. load current project version from SFDC 
+	    :ApexRefreshProject
+
+------------------------------------------------------------------------------
+B. vim force.com plugin standalone                     *apex-plugin-standalone*
+
+In this mode Eclipse is not needed.
+
+0. When using this plugin for the first time - check if you configuration looks ok
+    Open new vim insatnce and execute >
+    :setfiletype apexcode
+    :ApexValidateJavaConfig
+<
+Check that |ApexValidateJavaConfig| does not return any errors.
+
+1. Run :|ApexInitProject| and follow the wizard
+
+
+------------------------------------------------------------------------------
+Plugin exposes following commands:                              *apex-commands*
+
+|ApexValidateJavaConfig|            test your java/tooling-force.com.jar
+                                    configuration
+
+|ApexMessages|                      special buffer which displays log of all
+                                    commands
+
+|ApexCompare|                       compare files in two local projects
+|ApexCompareLocalProjects|          compare two local projects
+|ApexCompareWithPreRefreshVersion|  compare with pre refresh project state
+|ApexDeploy|                        deploy modified files to SFDC (Metadata API)
+|ApexDeployAll|                     deploy all files in current project (Metadata API)
+|ApexDeployAllDestructive|          deploy all files in current project (Metadata API)
+                                    if there are deleted local files then remove
+                                    them from remote as well 
+|ApexDeployDestructive|             deploy modified files to SFDC (Metadata API)
+                                    if there are deleted local files then remove
+                                    them from remote as well.
+|ApexDeployOpen|                    deploy all open files to SFDC (Metadata API)
+|ApexDeployOne|                     deploy file opened in current buffer (Metadata API)
+|ApexDeployStaged|                  deploy all files listed in Stage cache 
+                                    (Metadata API)
+|ApexDiffWithRemoteFile|            compare local file with its remote version
+|ApexDiffWithRemoteProject|         compare local project with its remote version
+|ApexExecuteAnonymous|              run 'Execute Anonymous'
+|ApexExecuteAnonymousRepeat|        repeat last 'Execute Anonymous'
+|ApexGitInit|                       initialise new Git repository for current 
+                                    project
+|ApexInitProject|                   initialise new SFDC project
+|ApexLog|                           view last log
+|ApexNewFile|                       create new file
+|ApexPrintChanged|                  display all modified files
+|ApexPrintConflicts|                list potential conflicts between local and remote
+|ApexQuery|                         execute selected SOQL query
+|ApexQueryRepeat|                   repeat last SOQL query
+|ApexRefreshFile|                   refresh current file from SFDC
+|ApexRefreshProject|                refresh project from SFDC
+|ApexRemoveStaged|                  remove Staged files from target SFDC ORG
+|ApexRetrieve|                      retrieve specified metadata types from server
+|ApexSave|                          save modified files to SFDC (Tooling API)
+|ApexSaveOne|                       save file opened in current buffer
+                                    (Tooling API)
+|ApexSaveOpen|                      save all open files to SFDC (Tooling API)
+|ApexScratch|                       open scratch pad
+|ApexStage|                         show/switch-to "Stage" buffer
+|ApexStageAdd|                      add to Stage file in the current buffer
+|ApexStageAddOpen|                  add to Stage files from all open buffers
+|ApexStageClear|                    clear Stage buffer
+|ApexStageRemove|                   remove file in the current buffer from Stage cache 
+|ApexTest|                          run Unit Test(s) 
+|ApexTestCoverageHideAll|           hide per-line coverage highligh in all files
+|ApexTestCoverageShow|              show per-line coverage highligh for file in 
+                                    the current or specified buffer
+|ApexTestCoverageToggle|            toggle per-line coverage highligh in
+                                    current file
+|ApexTestWithCoverage|              run Unit Tests and generate per-line coverage
+|ApexTListToggle|                   toggle taglist (works if 'taglist' plugin 
+                                    is installed)
+|ApexToolingVersion|                show version of tooling-force.com.jar
+
+------------------------------------------------------------------------------
+
+                                                        *ApexValidateJavaConfig*
+Before running any Apex command for the first time you may want to test if
+your java & "tooling-force.com.jar" config looks good.
+Open any local apex class ".cls" file and run :ApexValidateJavaConfig.
+
+                                                                 *ApexMessages*
+
+Every time you run :Apex[Something] command which makes a call to server the
+log of this command is recorded in 'apex_messages' buffer. In some cases this
+buffer is opened automatically. If you have executed a command and not sure
+what its result was - run :ApexMessages
+
+                                                                   *ApexCompare*
+
+Imagine you have 2 sandboxes of the same Org and want to compare current file
+with its counterpart in another sandbox
+
+Example:
+Assume following salesforce project folder structure
+    .../some-path/sandbox 1/src
+    .../some-path/prod org/src
+'some-path' may be root of eclipse workspace or any other folder
+
+':ApexCompare' will open directory selection dialogue
+Assuming current project is 'sandbox 1' select 'prod org' folder and system
+will open specified (|'g:apex_diff_cmd'|) diff tool with both files 
+
+                                                      *ApexCompareLocalProjects*
+
+Similar to :|ApexCompare| but instead of individual files this command calls
+external diff tool on "src" folders of two projects.
+Imagine you have 2 sandboxes of the same Org and want to compare current 
+project with its counterpart in another sandbox file list wise.
+
+Example:
+Assume following salesforce project folder structure:
+    .../some-path/sandbox 1/src
+    .../some-path/prod org/src
+'some-path' may be root of eclipse workspace or any other folder
+
+':|ApexCompareLocalProjects|' will open directory selection dialogue.
+Assuming current project is 'sandbox 1' select 'prod org' folder and system
+will open specified (|'g:apex_diff_cmd'|) diff tool with "src" folders of both
+projects.
+
+                                              *ApexCompareWithPreRefreshVersion*
+
+Every time when refresh from SFDC is executed system backs up modified files
+from local project in the location specified by |'g:apex_backup_folder'|
+Once refresh is complete it is possible to quickly open diff tool to compare
+current file with its pre-refresh version.
+Same as with |ApexCompare| you only have to pick top level folder of the
+relevant backup i.e. parent of ./src/ folder, no need to drill down into
+project subfolders.
+
+                                                                    *ApexDeploy*
+
+Use :|ApexDeploy| to deploy all modified files of current project to SFDC.
+See also :|ApexPrintChanged|.
+
+All commands in :|ApexDeploy|* family support 2 optional arguments 
+- deployment mode: normal deploy or 'checkOnly'
+- 'project name' to deploy to. This name should match file name part of
+  .properties file which contains access details.
+See |force.com-settings| for details about .properties files.
+For example if I am working in "My Sandbox1" project and have 2 .properties 
+files:
+"My Sandbox 1.properties" and "My Sandbox 2.properties" then >
+ :ApexDeploy
+<will deploy by default using "My Sandbox 1.properties" file, while >
+ :ApexDeploy My\ Sandbox\ 2
+<will deploy files from current project using "My Sandbox 2.properties" file.
+
+Project name argument of all commands in :|ApexDeploy|* family supports 
+completion.
+For instance, using project names from the example above >
+ :ApexDeploy checkOnly My<Tab>
+< will offer "My Sandbox 1" and "My Sandbox 2"
+
+Note 1: Uses Metadata API.
+
+Note 2: See also :|ApexSave|
+
+Note 3: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                                 *ApexDeployAll*
+
+Deploy all files in current project. This feature works reasonably well with
+code files, custom labels, page layouts and many other metadata types but
+suffers from the same limitations as salesforce.com library for Ant. 
+For example - it will not create new Profiles. If profile already exists, then it
+will complain that it can not rename it, even if you are not trying to rename.
+If there are Objects and Workflows in current project then SFDC may complain
+that Objects have to be created before workflows, even if all objects already
+exist in SFDC.
+
+Note 1: Uses Metadata API.
+
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                      *ApexDeployAllDestructive*
+
+WARNING:
+This is a dangerous and destructive operation - use it at your peril!
+
+In addition to behaving like :|ApexDeployAll|, it also removes files that live
+remotely but that do not live locally. The files to which this applies to are
+determined by your package.xml file.
+
+It is wise to check :|ApexDiffWithRemoteProject| to see which files have changed,
+and which files will be removed.
+
+This command is useful when you are using version control systems like git and
+treat them as your source of truth.
+
+Note 1: Uses Metadata API.
+
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                         *ApexDeployDestructive*
+
+WARNING: 
+This is a dangerous and destructive operation - use it at your peril!
+
+You can think of :ApexDeployDestructive as a combination of :|ApexDeploy| and
+:|ApexRemoveStaged| executed in one go. 
+Unlike :|ApexRemoveStaged| you do not have to add anything manually to the
+Stage and the Stage is not used/touched.
+
+In addition to deploying modified files there will be a check done to see if
+local session contains information about local files that no longer exist on
+the local machine. If such files are detected, they will be deleted from SFDC
+as well.
+
+It is always a good idea to run :|ApexPrintChanged| before
+:|ApexDeployDestructive| to make sure that you know what files will be deleted in
+"Destructive" part.
+
+Example:
+- create file MyClass.cls using :|ApexNewFile|
+- run :ApexDeploy
+  this will upload MyClass to SFDC and record MyClass.cls in the local session 
+  store
+- delete local file MyClass.cls & MyClass.cls-meta.xml from your drive
+- run :ApexDeployDestructive
+  this will deploy any modifications to existing files and also remove
+  MyClass.cls from SFDC
+
+Note 1: Uses Metadata API.
+
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                                *ApexDeployOpen*
+
+Deploy to SFDC all files open in current Vim instance.
+
+Note 1: Uses Metadata API.
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                                 *ApexDeployOne*
+
+Deploy to SFDC single file from current buffer.
+
+Note 1: Uses Metadata API.
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                              *ApexDeployStaged*
+
+Deploy all files previously added by :|ApexStageAdd| command.
+
+Note 1: Uses Metadata API.
+Note 2: All commands in :|ApexDeploy|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                        *ApexDiffWithRemoteFile*
+
+Compare current file with its remote counterpart.
+Params:
+- [optional] - name of remote project (e.g. another sandbox)
+  Name must match .properties file
+  If provided then difference will be shown between current (local) project
+  file and file in the specified remote Org.
+
+                                                     *ApexDiffWithRemoteProject*
+
+List file differences between local and remote project.
+Params:
+- [optional] - name of remote project (e.g. another sandbox)
+  Name must match .properties file
+  If provided then differences will be listed between current (local) project
+  files and files in the specified remote Org.
+
+                                                          *ApexExecuteAnonymous*
+
+Execute a block of code.
+Block can be either whole current buffer or visual selection
+
+                                                    *ApexExecuteAnonymousRepeat*
+
+A shortcut to repeat last :|ApexExecuteAnonymous| command.
+Useful when you want to re-run visual selection which is not currently selected,
+or you are not in the buffer where last :|ApexExecuteAnonymous| was run.
+
+                                                                   *ApexGitInit*
+
+If git is available then :|ApexGitInit| can be used to initialise new git
+repository in current force.com project and add (with confirmation) existing
+source files.
+
+Supported resources types:
+ -labels
+ -pages
+ -classes
+ -triggers
+ -components
+ -static resources
+
+                                                               *ApexInitProject*
+
+Requires an existing SFDC org. To create one see: 
+https://developer.salesforce.com
+
+Asks project location/login related questions (see below) and creates a new
+project folder and properties file.
+As the very last step it will run :|ApexRefreshProject|.
+
+Depending on whether or not |'g:apex_workspace_path'| variable is set the
+project folder will be created in the current or relative to
+|'g:apex_workspace_path'| directory, and the properties file in the path
+specified by |g:apex_properties_folder|.
+
+:|ApexRefreshProject| asks following questions:
+1. Project name: Whatever string supported by the OS as a folder name.
+2. Username: The SFDC org's user name (email format).
+3. Password: The password for the given user name.
+4. Security token: can be left blank if your IP is white-listed in the Org
+   security settings.
+5. Org type: It must be "login" for a dev/prod org or "test" for a sandbox.
+
+Once project is setup you can proceed with creation of Class/Page/Trigger using
+:|ApexNewFile|
+
+                                                                       *ApexLog*
+
+A shortcut to open (if available) log file generated by last Apex* command.
+
+                                                                   *ApexNewFile*
+
+Invoke file types menu and create Apex file (class, trigger, etc). 
+Not all files are currently supported.
+
+Note: File will be created with API version defined by |g:apex_API_version|
+variable.
+
+                                                              *ApexPrintChanged*
+
+Display changed files, i.e. candidates for deployment to SFDC.
+
+                                                            *ApexPrintConflicts*
+
+Checks if locally modified files have been updated remotely since last time we
+deployed local project.  
+Takes into account only modified files (see :|ApexPrintChanged|), i.e. files
+which would be deployed if :DeployModified command is executed.
+See also |'g:apex_conflict_check'|.
+
+                                                                     *ApexQuery*
+
+Execute block of code as SOQL query.
+Block can be either whole current buffer or visual selection.
+Supports 2 (optional) parameters:
+- API: Partner or Tooling
+- project-name
+Example >
+    :ApexQuery Tooling MyOrg
+<
+                                                               *ApexQueryRepeat*
+
+A shortcut to repeat last :|ApexQuery| command.
+Useful when you want to re-run visual selection which is not currently selected,
+or you are not in the buffer where last :|ApexQuery| was run.
+Supports 2 (optional) parameters, see :|ApexQuery|
+
+                                                               *ApexRefreshFile*
+
+Refresh current (single) file and replace it with its version from SFDC.
+
+Note: :|ApexRefreshFile| uses "diffWithRemote" in the background and only 
+updates selected local file but does not touch local timestamp cache, hence 
+during saving / deploying file to SFDC file still will be considered as 
+outdated.
+
+                                                             *ApexRefreshProject* 
+
+Refresh current project and download new/modified files from SFDC, replacing
+all local files.
+
+                                                              *ApexRemoveStaged*
+
+Delete staged files from current or specified Org. See |ApexStageAdd|.
+Example 1: >
+	:ApexRemoveStaged
+< will remove all files listed in :ApexStage from the current Org
+Example 2: >
+	:ApexRemoveStaged My Other Org
+< will remove staged files from "My Other Org"
+
+See also :|ApexDeployDestructive|
+
+                                                                  *ApexRetrieve*
+
+Invoke metadata types list "menu" and load data of specified types.  
+Usually :|ApexRefreshProject| will retrieve all types defined in package.xml.
+:|ApexRetrieve| can be used to load types which are not part of current
+package.xml Use this command when package.xml does not yet contain necessary
+metadata type(s). If retrieved type is not part of the package.xml system will
+offer to update package.xml accordingly. 
+*WARNING* :|ApexRetrieve| command is Experimental. You may want to backup your
+project before running :|ApexRetrieve|.
+
+There are 2 potential scenarios which may involve :|ApexRetrieve|
+1. Load all members of given metadata type
+   e.g. to load all Custom Objects you will do something like this >
+	:ApexRetrieve
+< then select CustomObjects line and then run >
+	:Retrieve
+<
+2. Load selected members of given metadata type
+   e.g. to load only Account metadata you will do something like this >
+	:ApexRetrieve
+< then select CustomObjects line and then run >
+	:Expand
+< then select Account and run >
+	:Retrieve
+<
+                                                                      *ApexSave*
+
+Similar to :|ApexDeploy| but uses Tooling API instead of Metadata API.
+Takes modified files and tries to save them to SFDC.
+In some cases (especially in large Orgs) Tooling API may be a bit quicker than
+:|ApexDeploy| which uses Metadata API.
+
+Note 1: Uses Tooling API.
+Note 2: Deploy with Tooling API does not work in Production Orgs.
+Note 3: All commands in :|ApexSave|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                                   *ApexSaveOne*
+
+Save single file from current buffer.
+
+Note 1: Uses Tooling API.
+Note 2: Deploy with Tooling API does not work in Production Orgs.
+Note 3: All commands in :|ApexSave|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+                                                                  *ApexSaveOpen*
+
+Saves files from currently opened tabs or buffers.
+
+Note 1: Uses Tooling API.
+Note 2: Deploy with Tooling API does not work in Production Orgs.
+Note 3: All commands in :|ApexSave|* family support <bang>, see 
+|'g:apex_conflict_check'| for more details.
+
+                                                                   *ApexScratch*
+
+A shortcut to open a scratch file. 
+Useful when combined with :|ApexExecuteAnonymous| or :|ApexQuery| commands.
+
+                                                                     *ApexStage*
+
+Stage is a temporary buffer which can be used as a stack to list files/metadata
+types which will be used in subsequent Deploy/Remove operations.
+
+Stage content can be manipulated either by commands like :|ApexStageAdd|,
+:|ApexStageRemove|, :|ApexStageClear|, :|ApexStageAddOpen| or directly like any
+other text buffer.  
+Stage is persistent and retains its content between vim editing sessions unless
+explicitly cleared. If you use :Write command while in Stage buffer, or just 
+switch from Stage to another file/buffer, Stage content will be automatically 
+written to a disk file.
+
+See also :|ApexRemoveStaged| and :|ApexDeployStaged|.
+
+                                                                  *ApexStageAdd*
+
+Add current file to |ApexStage|.
+
+                                                              *ApexStageAddOpen*
+
+Cycle through open buffers and add their files to |ApexStage|, provided that
+these are supported apex file types.
+
+                                                                *ApexStageClear*
+
+Clear existing stage cache.
+
+                                                               *ApexStageRemove*
+
+Remove file opened in current buffer from stage cache.
+
+                                                                      *ApexTest*
+
+Similar to :|ApexDeploy| but runs unit tests using either Metadata or Tooling
+API.
+If no class name specified then will run tests in all modified classes that
+contain 'testMethod'.
+
+By default no debug log is generated. Default Log level can be configured via
+|'g:apex_test_debuggingHeader'| variable.
+
+:|ApexTest| supports command line parameters (and their completion)
+Param: 1 - mode: 'meta-testAndDeploy', 'meta-checkOnly', 
+                'tooling-sync', 'tooling-async', 'testSuites'
+            default: 'testAndDeploy'
+           Note: 
+            - 'meta-testAndDeploy' runs all test methods in a specified 
+              class(es).
+            
+            - 'meta-checkOnly' 
+              - can run all or specific test method(s) in a class(es)
+              - does not save modified files to SFDC regardless of test
+                outcome.
+            
+            - 'tooling-sync' and 'tooling-async' use Tooling API and can only
+              work with files already saved in remote SFDC. For this reason
+              tooling-force.com.jar will try to save modified files (if any)
+              before attempting to run the test(s).
+
+            - depending on current SFDC system load you may find that in some
+              cases 'tooling-sync' completes faster than 'tooling-async' even
+              though 'tooling-async' is advertised in the documentation as
+              "allows methods to process in parallel".
+            
+            - 'tooling-sync' runs all test method(s) in specified class(es).
+              Execution is synchronous.
+
+            - 'tooling-async' runs one or more methods within one or more Apex
+              classes, using the asynchronous test execution mechanism.
+              - can run all or specific test method(s) in a class(es)
+            
+            - 'testSuites' allows to execute one (or more) Test Suites
+              - multiple test suites should be specified comma separated
+                e.g. TestSuite1,TestSuite2
+              - if you use tab completion then you may have to press it twice
+                for Test Suite names parameter - first time calls SFDC to
+                query available test suite Names
+              - there is no support for creating/managing Test Suite content
+                from vim-force.com plugin, use SFDC Developer console instead.  
+
+
+Param: 2 - class name - use this parameter to run only unit tests in a specific
+           class. Multiple test class names can be specified separated by ','.
+           In this case 'param 3' has to be '*' or 'param 3' and 'param 4'
+           must be omitted. 
+           If need to specify particular test method(s) for several classes
+           then use following syntax: >
+ :ApexTest meta-checkonly TestClass1.method1,TestClass1.method2,TestClass3
+<
+    Note 1: There are no spaces between class/method names.
+           The above command will run 
+           - tests method1() and method2() in test class TestClass1
+           - all tests in TestClass3
+
+    Note 2: If using wildmenu then command line completion candidates may look
+           unusual at first glance - instead of just last method or class name
+           string the menu of completions will include full text of Param 2
+           entered so far plus new suggestions.
+
+    Note 3: 'meta-checkOnly' does not always return coverage data. This is a
+            limitation on SFDC Metadata API side.     
+             
+Param: 3 - method name - if test class contains several 'testMethod'-s then
+           this parameter allows to specify single method to run. Body of all other
+           methods will be skipped. This is particularly useful when you want to see log
+           file from specific test and do not want other tests to pollute the log.
+Param: 4 - target Org/project name. See :|ApexDeploy| for more details
+
+Differences to :|ApexDeploy| 
+- if you run :|ApexTest| and get unit tests failure(s) or insufficient overall
+  code coverage then SFDC rejects changes and you files are NOT saved in SFDC.
+
+                                                       *ApexTestCoverageHideAll*
+
+Hide test coverage highlight signs in all files.
+
+                                                          *ApexTestCoverageShow*
+
+When last test was run with :|ApexTestWithCoverage| a line-by-line report of
+code coverage in the current file can be shown with :|ApexTestCoverageShow|. 
+Lines not covered by last unit test run will be highlighted with vim 'sign'
+function.
+Note: this command accepts command line parameter - name of open buffer.
+If provided then coverage will be shown for file open in the specified buffer
+instead of current file.
+
+ex 1: with file name (file must be loaded in current or other buffer) >
+ :ApexTestCoverageShow MyClass.cls
+<
+ex 2: without file name (this will attempt to show coverage signs in the current
+file) >
+ :ApexTestCoverageShow
+<
+                                                        *ApexTestCoverageToggle*
+
+Shows or hides code coverage highlight for current file.
+See :|ApexTestCoverageShow| for more details
+
+                                                          *ApexTestWithCoverage*
+
+Similar to :|ApexTest| but also generates line-by-line report of code coverage
+in quickfix buffer.
+
+Coverage signs can be displayed using following methods:
+
+Method 1 - from quickfix buffer
+- in your .vimrc set g:apex_quickfix_coverage_toggle_shortcut to a desired key
+  e.g. >
+  let g:apex_quickfix_coverage_toggle_shortcut = "c"
+<
+  using mapping in the above example - when you press "c" on a coverage line
+  (in quickfix buffer) two things will happen:
+  a. as usual you will be taken to the buffer under cursor 
+  b. :|ApexTestCoverageToggle| will be immediately executed on that file
+
+Method 2 - using :|ApexTestCoverageShow| or :|ApexTestCoverageToggle| command
+           manually without file name
+ex: >
+ :ApexTestWithCoverage checkOnly MyTestClass
+    " open the file where you want to see coverage signs
+ :ApexTestCoverageShow
+<
+
+Method 3 - using :|ApexTestCoverageShow| or :|ApexTestCoverageToggle| command
+           manually with file name
+ex: >
+ :ApexTestWithCoverage checkOnly MyTestClass
+    " before executing next line make sure that buffer with 'OtherClass.cls' is loaded
+    " it does not have to be current buffer, but *must* be loaded
+ :ApexTestCoverageShow OtherClass.cls
+<
+
+Note_1: :|ApexTestWithCoverage| allows to pipe :|ApexTestCoverageShow| command
+ex: >
+ :ApexTestWithCoverage checkOnly MyTestClass | ApexTestCoverageShow OtherClass.cls
+<
+Note_2: piping is a bit tempremental, so if it does not work then use the
+generic (two commands, each on its own line) version shown above.
+
+                                                               *ApexTListToggle*
+
+Helper for 'TagList' plugin (http://vim-taglist.sourceforge.net)
+Taglist plugin does not support mixed filetypes like: apexcode.java 
+so we have to trick it like if &filetype was = 'apexcode'
+i.e. every time when Taglist is called set filetype=apexcode temporarely
+and then revert back to what it was 
+See apexcode.vim s:Apex_TList_Toggle() method for more details.
+
+                                                            *ApexToolingVersion*
+
+Return version of tooling-force.com.jar .
+
+
+
+==============================================================================
+                                                                *auto-complete*
+                                                         *apex-code-completion*
+Current version includes basic auto completion support for Apex classes and
+some standard Apex library namespaces.
+
+Current limitations:
+- does not support completion of SObject fields inside SOQL statements
+  
+Usage:
+- try following in .cls file (do not type single quote characters)
+    'System.' Ctrl-X,Ctrl-O
+	'String str = "abc"; str.' Ctrl-X,Ctrl-O
+
+Recommended .vimrc config for apex completion:
+1. shortcut key
+    You may want to map Ctrl-X,Ctrl-O to something shorter, e.g. >
+	""""""""""""""""""""""""""""""""""""""""""
+	" map omni completion to Control + Space
+	""""""""""""""""""""""""""""""""""""""""""
+	inoremap <C-Space> <C-x><C-o>
+    inoremap <C-@> <C-x><C-o>
+<
+2. completion menu popup >
+    set completeopt=menu,preview,longest
+<
+  
+                                        *resources_unpacked* *zipped-resources*
+Work with zipped content of "staticresources/*.resource" files is done as
+follows:
+- open any class/page/trigger in Vim as normal to let Vim load vim-force.com
+  plugin
+- navigate to .resource file and open it as you would open normal file in vim
+- if selected .resource file is a valid ZIP archive then vim-force.com will
+  extract content of .resource file in a separate folder and will open
+  directory listing for that folder so you can select relevant file from
+  archive to work with
+- now you can modify unpacked files from the .resource you have just "opened"
+  Every time you save such unpacked file - the corresponding .resource will be
+  updated and changes re-packed
+- deployment of such modified .resource files is done same way as with any
+  other Apex file, using commands like :|ApexDeploy|, :|ApexSave|, etc.
+
+Note: current version of vim-force.com does not support creating new .resource
+files. Use SFDC UI to create new static resource and then call
+:|ApexRefreshProject|.
+
+==============================================================================
+SETTINGS                                                   *force.com-settings*
+
+Before using force.com plugin following variables must be defined (ex: in .vimrc)
+The plugin provides the following options that can customise the
+force.com plugin behaviour. These options should be set in your vimrc.
+
+All of the examples below are for Unix environments. When defining paths for MS
+Windows use double slash, like this: >
+	let g:apex_backup_folder="c:\\temp\\apex\\backup"
+<
+
+Required
+|'g:apex_backup_folder'|          project backup folder
+|'g:apex_temp_folder'|            temporary folder
+|'g:apex_properties_folder'|      login/pass/token credentials
+|'g:apex_tooling_force_dot_com_path'|      
+                                  full path to tooling.jar
+
+Optional
+|'g:apex_diff_cmd'|                 path to file comparison tool
+|'g:apex_ctags_cmd'|                path to exuberant ctags 
+|'g:apex_syntax_case_sensitive'|    defines whether Apex syntax highlighting is case sensitive 
+|'g:apex_API_version'|              force.com API version to use when create new files, ex: "29.0"
+|'g:apex_pollWaitMillis'|           number of milliseconds to wait between each
+                                    poll of Salesforce to retrieve the results
+|'g:apex_maxPollRequests'|          The number of times to poll Salesforce for
+                                    the results of the task
+|'g:apex_test_debuggingHeader'|     The debug logging level for tests. 
+|'g:apex_conflict_check'|           Control (on/off) conflict check with SFDC before deployment
+
+|'g:apex_java_cmd'|                 custom path to java executable
+
+
+|'g:apex_tooling_force_dot_com_java_params'|      
+                                    pass extra JVM params to tooling jar
+
+|'g:apex_tooling_force_dot_com_extra_params'|      
+                                    pass extra params to tooling jar, e.g. proxy
+
+|'g:zip_zipcmd'|                    path to zip program
+|'g:zip_unzipcmd'|                  path to unzip program
+
+|'g:apex_workspace_path'|           root folder to use when creating new project
+                                    with :|ApexInitProject|
+
+|'g:apex_OnCommandComplete'|        script to execute at the end of long running
+                                    command
+
+|'g:apex_server_timeoutSec'|        automatic server shutdown timeout
+|'g:apex_server_port'|              change port used by local server 
+
+                                                        *'g:apex_backup_folder'*
+
+/path/to/folder where current project source is backed up before refresh from SFDC
+Note, full path is required.
+ex: 
+	let g:apex_backup_folder="/tmp/apex/backup"
+
+                                                          *'g:apex_temp_folder'*
+
+If by default tooling-force.com.jar will use system temp folder for all file
+related operations.  If you want to specify an alternative location then set
+'g:apex_temp_folder' variable
+Note, full path is required.
+ex: >
+	let g:apex_temp_folder="/tmp/apex/gvim-deployment"
+<
+                                                   *'g:apex_properties_folder'*	
+Path to folder with *.property files which contain SFDC orgs access details
+It is recommended to store those files in encrypted folder or partition.
+Note, full path is required.
+Example below assumes that we are using Truecrypt
+
+ex: >
+	let g:apex_properties_folder="/media/truecrypt1"
+<
+or for win32, assuming that Truecrypt volume is T: >
+	let g:apex_properties_folder="t:"
+<
+                                                          *force.com-shell_utils*
+Plugin uses some built in shell commands like:
+'rm', 'mkdir', 'cp' on unix
+and
+'rmdir', 'copy' on ms windows
+It is assumed that these are generally available out of the box.
+If you are using non standard environment then you can define paths to those commands.
+See apexOs.vim for details
+
+                                                             *'g:apex_diff_cmd'*
+/path/to/file/compare/tool
+ex: >
+	let g:apex_diff_cmd="/usr/bin/meld"
+<
+If undefined then internal vimdiff will be used
+
+                                                            *'g:apex_ctags_cmd'*
+/path/to/exuberant/ctags/binary
+ex: >
+	let g:apex_ctags_cmd="/usr/local/bin/ctags"
+<
+If undefined then first available ctags binary will be used for tag generation
+
+                                                *'g:apex_syntax_case_sensitive'*
+Use this variable to specify that Apex classes and triggers shall use case sensitive
+syntax highlighting.
+If not specified then Apex default is used - ignore case
+ex: >
+	let g:apex_syntax_case_sensitive = 1 " make syntax highlighting case sensitive
+<
+
+                                                          *'g:apex_API_version'*
+Optional.
+When commands like |ApexNewFile| generate new *-meta.xml file the 
+<apiVersion>25.0</apiVersion> value is taken from 'g:apex_API_version' variable.
+Set this variable to the necessary value if default does not meet your needs.
+ex: >
+	let g:apex_API_version="25.0"
+<
+
+                                                       *'g:apex_pollWaitMillis'*
+Optional. 
+Defaults to 1000. Sets pollWaitMillis for tooling-force.com.jar tasks. 
+Number of milliseconds to wait between each poll of Salesforce to retrieve the
+results. The smaller the value defined by 'g:apex_pollWaitMillis' the quicker
+deploy will finish, but on slow connections larger values, like 10000 may be
+necessary.
+See ant-salesforce.jar documentation for 'pollWaitMillis' parameter.
+
+                                                      *'g:apex_maxPollRequests'*
+Optional. 
+Defaults to 1000. Sets maxPollRequests for tooling jar tasks. 
+The number of times to poll Salesforce for the results of the task.
+Usually default value is sufficient, but if you have a large Org and
+|'g:apex_pollWaitMillis'| parameter is short then higher
+'g:apex_maxPollRequests' value may be needed.
+
+                                                         *'g:apex_test_debuggingHeader'*
+Optional. 
+Logging levels to use for tests. Defaults to no logs.
+See Metadata API documentation for 'DebuggingHeader'.
+ex:  >
+    let g:apex_test_debuggingHeader = {"All": "Error", "Visualforce": "Error",
+    \ "Workflow": "Error", "Db": "Error", "System": "Error", "Callout": "Error",
+    \ "Apex_profiling": "Error", "Apex_code": "Debug", "Validation": "Error"}
+<
+
+                                                *'g:apex_conflict_check'*
+Optional.
+By default every time when |:ApexDeploy| or |:ApexTest| command is issued a
+check is done if there have been changes to remote (SFDC) version of local
+files which are currently being deployed. 
+In order to control this behaviour 'g:apex_conflict_check' variable can be
+set as follows:
+- To disable check  - set to 0
+- any other value means - "check always".
+ex: >
+
+	let g:apex_conflict_check = 1 " always check
+	let g:apex_conflict_check = 0 " never check
+<
+Note: If you want to disable conflict check for a single :|ApexDeploy| or 
+:|ApexTest| operation then use <bang>, ex: >
+	:ApexDeploy!
+<
+                                                             *'g:apex_java_cmd'*
+Optional.
+If java executable is not found in $PATH then specify custom location like so >
+ " windows
+ let g:apex_java_cmd = 'c:\\path\\to\\your\\java.exe'
+ " *nix
+ let g:apex_java_cmd = '/path/to/your/java'
+<
+
+                                           *'g:apex_tooling_force_dot_com_path'*
+Full path to toolling-force.com.jar.
+toolling-force.com.jar can be obtained on 'releases' page here: 
+https://github.com/neowit/tooling-force.com
+>
+ " windows
+ let g:apex_tooling_force_dot_com_path = 'c:\\path\\to\\folder\\toolling-force.com.jar'
+ " *nix
+ let g:apex_tooling_force_dot_com_path = '/path/to/folder/toolling-force.com.jar'
+<
+
+                                    *'g:apex_tooling_force_dot_com_java_params'*
+Optional.
+Allows to pass extra parameters to java virtual machine.
+e.g. change default stdout log level to 'info' >
+ let g:apex_tooling_force_dot_com_java_params = "-Dorg.apache.commons.logging.simplelog.defaultlog=info"
+<
+
+                                   *'g:apex_tooling_force_dot_com_extra_params'*
+Optional.
+Allows to pass extra parameters to tooling-force.com.jar every time when it is
+called.
+e.g. set proxy >
+ let g:apex_tooling_force_dot_com_extra_params = "--http.proxyHost=localhost --http.proxyPort=8888 --http.proxyUser=some --http.proxyPassword=pass"
+<
+
+                                             *'g:zip_zipcmd'* *'g:zip_unzipcmd'*
+Optional.
+In order to handle zipped *.resource files zip and unzip command line binaries
+must be available in $PATH or explicitly specified via 'g:zip_zipcmd' and
+'g:zip_unzipcmd' variables.
+e.g. >
+ let g:zip_zipcmd = "/usr/local/bin/zip"
+ let g:zip_unzipcmd = "/usr/local/bin/unzip"
+<
+see also |zipped-resources|
+
+                                                    *'g:apex_OnCommandComplete'*
+Optional.
+Can be used to execute a shell command upon completion of long running
+Apex command.
+'g:apex_OnCommandComplete' is a dictionary which accepts two values:
+- script: full command line
+- timeoutSec: how long command needs to run for script to be executed
+
+Example 1: (OSX, MacVim) >
+    let g:apex_OnCommandComplete = {'script': 'osascript -e "tell application \"MacVim\" to activate"', 'timeoutSec': 10}
+<
+if Apex command (e.g. :|ApexTest|) runs for more than 10 seconds then upon
+completion MacVim window will be brought back to focus. May be useful if you
+want to switch to another application while vim is working, but want to go back
+to vim as soon as command execution is done.
+
+Example 2: (OSX) if you want to announce completion of long running :|ApexDeploy|
+then g:apex_OnCommandComplete can be configured like so: >
+   let g:apex_OnCommandComplete = {'script': 'say "Job finished"', 'timeoutSec': 10}  
+<
+if command runs for more than 10 seconds then upon completion you will hear
+"Job finished" from computer speaker.
+
+
+                                                       *'g:apex_workspace_path'*
+Optional.
+root folder to use when creating new project with :|ApexInitProject|
+
+                                        *apex-server*
+                                        *g:apex_server_timeoutSec*
+                                        *g:apex_server_port*
+
+Once loaded tooling-force.com.jar will keep itself loaded until
+|'g:apex_server_timeoutSec'| timeout since last touch is reached.
+For example if g:apex_server_timeoutSec is set to 1800 seconds then tooling-force.com.jar
+will unload itself from memory when 30 minutes elapse since last time
+vim-force.com called it.
+
+Use |'g:apex_server_timeoutSec'| to set the timeout and minimise RAM usage when
+you are not working with vim-force.com plugin.
+e.g. >
+	" allow server to wait for new connections within 30 minutes
+	let g:apex_server_timeoutSec=60*30
+<
+
+Server is accessed via a TCP socket on port 8888. If you want to change the
+port then define |'g:apex_server_port'| global variable in your .vimrc, e.g. >
+	let g:apex_server_port = 65000
+<
+
+==============================================================================
+RECOMMENDED KEYBOARD SHORTCUTS                     *force.com-shortcuts-example*
+
+To further speedup your day-to-day workflow you may want to consider adding 
+something like this in your .vimrc file
+
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Apex code specific Keyboard mapping
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""" >
+ function! s:setApexShortcuts()
+
+	""""""""""""""""""""""""""""""""""""""""""
+	" Search in files
+	""""""""""""""""""""""""""""""""""""""""""
+
+	" search exact word
+	nmap <leader>sc :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.cls ../**/*.trigger <CR>:cwin<CR>
+	nmap <leader>st :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.trigger <CR>:cwin<CR>
+	nmap <leader>sp :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.page <CR>:cwin<CR>
+	nmap <leader>ss :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.scf <CR>:cwin<CR>
+	nmap <leader>sa :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.cls ../**/*.trigger ../**/*.page ../**/*.scf <CR>:cwin<CR>
+
+	" search - *contains* - partal match is allowed
+	nmap <leader>sC :noautocmd vimgrep /<C-R><C-W>/j ../**/*.cls ../**/*.trigger <CR>:cwin<CR>
+	nmap <leader>sT :noautocmd vimgrep /<C-R><C-W>/j ../**/*.trigger <CR>:cwin<CR>
+	nmap <leader>sP :noautocmd vimgrep /<C-R><C-W>/j ../**/*.page <CR>:cwin<CR>
+	nmap <leader>sS :noautocmd vimgrep /<C-R><C-W>/j ../**/*.scf <CR>:cwin<CR>
+	nmap <leader>sA :noautocmd vimgrep /<C-R><C-W>/j ../**/*.cls ../**/*.trigger ../**/*.page ../**/*.scf <CR>:cwin<CR>
+
+	" prepare search string, but do not run
+	nmap <leader>sm :noautocmd vimgrep /\<<C-R><C-W>\>/j ../**/*.cls ../**/*.trigger ../**/*.page ../**/*.scf \|cwin
+
+	" search visual selection in Apex project
+	function! ApexFindVisualSelection(searchType) range
+		let l:apex_search_patterns = {'class': '../**/*.cls ../**/*.trigger', 
+										\'trigger': '../**/*.trigger', 
+										\'page': '../**/*.page', 
+										\'all': '../**/*.cls ../**/*.trigger ../**/*.page ../**/*.scf'}
+		let l:saved_reg = @"
+		execute "normal! vgvy"
+
+		let l:pattern = escape(@", '\\/.*$^~[]')
+		let l:pattern = substitute(l:pattern, "\n$", "", "")
+
+		let commandLine="noautocmd vimgrep " . '/'. l:pattern . '/j '
+
+		let commandLine = commandLine . l:apex_search_patterns[a:searchType]
+		"echo "commandLine=" . commandLine
+		execute commandLine 
+		execute 'cwin'
+
+		let @/ = l:pattern
+		let @" = l:saved_reg
+	endfunction
+	vmap <leader>sc :call ApexFindVisualSelection('class')<CR>
+	vmap <leader>st :call ApexFindVisualSelection('trigger')<CR>
+	vmap <leader>sp :call ApexFindVisualSelection('page')<CR>
+	vmap <leader>sa :call ApexFindVisualSelection('all')<CR>
+ 
+ 
+ 	""""""""""""""""""""""""""""""""""""""""""
+ 	" CTags shortcuts
+ 	""""""""""""""""""""""""""""""""""""""""""
+ 	" shortcut to update ctags DB manually
+ 	" note for XFCE: disable default workspace 11 switch (Ctrl-F11) shortcut
+ 	" (settings-> Window Manager -> Keyboard),
+ 	" otherwise C-F11 in vim does not work
+ 	map <C-F11> <Esc>:ApexUpdateCtags<CR>
+ 
+ endfunction
+ 
+ " load shortcut mapping when one of apexcode file types is detected/loaded
+ autocmd FileType apexcode.java call s:setApexShortcuts()
+ autocmd FileType apexcode.html call s:setApexShortcuts()
+ autocmd FileType apexcode.javascript call s:setApexShortcuts()
+ autocmd FileType apexcode.html call s:setApexShortcuts()
+<
+
+
+==============================================================================
+FEATURES                                                    *force.com-features*
+
+Build/Save to SFDC 
+- with error reporting
+
+Load/update metadata from SFDC
+
+Create triggers/classes/pages
+- for details of working with "aura/lighnting" components see |aura.txt|
+
+Refresh current file from SFDC
+
+Refresh whole project from SFDC
+
+Execute Anonymous
+- whole buffer or selected lines
+
+Run tests
+- and display coverage
+
+Search
+- find word in classes/triggers
+- find word everywhere
+- find visual selection
+
+Syntax highlighting
+- supports syntax highlighting of Apex Classes, Triggers, Pages, JS Resources
+
+Basic Visualforce code completion
+- try following in .page file (do not type single quote characters)
+      '<' Ctrl-X,Ctrl-U
+      '<apex:' Ctrl-X,Ctrl-U
+      '<chatter' Ctrl-X,Ctrl-U
+
+Basic Apex Code completion 
+- see |*auto-complete*|
+
+- Handling content of zipped .resource files
+
+==============================================================================
+LIMITATIONS                                             *force.com-limitations*
+
+Salesforce Metadata API does not (in most cases) report error line numbers
+in Visualforce pages making it impossible to go-to actual problem line if
+compile/save fails due to syntax error. This is similar to Force.com IDE for
+Eclipse.
+
+==============================================================================
+RECOMMENDED-PLUGINS                             *force.com-recommended-plugins*
+
+There is a number of great Vim plugins which you may want to consider
+- Fugitive - git support
+- unite.vim - quick file/buffer open
+- NERDTree - project/file-system browsing
+- Pathogen - manage individually installed plugins in ~/.vim/bundle
+- Session - save/restore open files, like IDE Project
+- UltiSnips - implements some of TextMate's snippets features in Vim
+- TagBar - a source code browser plugin for Vim
+
+
+==============================================================================
+CREDITS                                                     *force.com-credits*
+
+Credit must go out to Bram Moolenaar and all the Vim developers for
+making the world's best editor (IMHO). I also want to thank everyone who
+helped and gave me suggestions. I wouldn't want to leave anyone out so I
+won't list names.
+
+License
+-------
+Copyright (c) Andrey Gavrikov.
+Distributed under the same terms as Vim itself.
+See :help license
+===============================================================================
+
+# vim:textwidth=78:ts=4:ft=help:norl:wrap:expandtab:shiftwidth=4:
